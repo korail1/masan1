@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -75,11 +76,32 @@
         <!-- Top Master Control & Visualizer Card -->
         <div class="bg-cardBg border border-slate-700/60 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col gap-4">
             
-            <!-- Realtime Waveform Visualizer Canvas -->
-            <div class="relative w-full h-28 sm:h-36 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
-                <canvas id="visualizer" class="w-full h-full block"></canvas>
-                <div id="visualizer-overlay" class="absolute inset-0 flex items-center justify-center bg-slate-950/70 text-slate-400 text-xs font-mono pointer-events-none transition-opacity duration-300">
-                    <i class="fa-solid fa-play-circle text-base mr-2"></i> 송신 시작 시 실시간 파형이 표시됩니다
+            <!-- Mobile-Optimized Frequency Transmission Status Display (Replaced Canvas) -->
+            <div id="tx-status-card" class="relative w-full py-5 px-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-col items-center justify-center gap-3 overflow-hidden transition-all duration-300">
+                <!-- Glowing Ambient Background Effect -->
+                <div id="pulse-bg" class="absolute inset-0 bg-cyan-500/0 transition-all duration-500 pointer-events-none"></div>
+
+                <!-- Status Icon & Title -->
+                <div class="flex items-center gap-3 z-10">
+                    <div id="status-icon-box" class="w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 text-lg transition-all duration-300">
+                        <i class="fa-solid fa-tower-broadcast"></i>
+                    </div>
+                    <div class="flex flex-col">
+                        <span id="tx-status-title" class="text-sm font-bold text-slate-400">송신 대기 중</span>
+                        <span id="tx-status-detail" class="text-xs text-slate-500 font-mono">출력할 주파수를 선택해 주세요</span>
+                    </div>
+                </div>
+
+                <!-- Equalizer LED Bars Animation (Mobile Clean View) -->
+                <div id="eq-bars" class="flex items-end justify-center gap-1.5 h-8 z-10 opacity-30 transition-opacity duration-300">
+                    <div class="w-1.5 h-3 bg-cyan-400 rounded-full transition-all"></div>
+                    <div class="w-1.5 h-5 bg-cyan-400 rounded-full transition-all"></div>
+                    <div class="w-1.5 h-8 bg-cyan-400 rounded-full transition-all"></div>
+                    <div class="w-1.5 h-4 bg-cyan-400 rounded-full transition-all"></div>
+                    <div class="w-1.5 h-6 bg-cyan-400 rounded-full transition-all"></div>
+                    <div class="w-1.5 h-3 bg-cyan-400 rounded-full transition-all"></div>
+                    <div class="w-1.5 h-7 bg-cyan-400 rounded-full transition-all"></div>
+                    <div class="w-1.5 h-4 bg-cyan-400 rounded-full transition-all"></div>
                 </div>
             </div>
 
@@ -197,9 +219,15 @@
         const audioUnlockBtn = document.getElementById('audio-unlock-btn');
         const statusDot = document.getElementById('status-dot');
         const statusText = document.getElementById('status-text');
-        const canvas = document.getElementById('visualizer');
-        const canvasCtx = canvas.getContext('2d');
-        const visualizerOverlay = document.getElementById('visualizer-overlay');
+
+        // Status Display Elements
+        const txStatusCard = document.getElementById('tx-status-card');
+        const pulseBg = document.getElementById('pulse-bg');
+        const statusIconBox = document.getElementById('status-icon-box');
+        const txStatusTitle = document.getElementById('tx-status-title');
+        const txStatusDetail = document.getElementById('tx-status-detail');
+        const eqBars = document.getElementById('eq-bars');
+        let eqInterval = null;
 
         /**
          * Initialize Audio Context & Lock handling for Mobile (iOS Safari / Android)
@@ -336,7 +364,8 @@
                 masterPowerBtn.className = "w-full py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all";
                 powerIcon.className = "fa-solid fa-power-off text-lg";
                 powerText.innerText = "전체 주파수 송신 시작";
-                visualizerOverlay.style.opacity = '1';
+                
+                updateStatusDisplay(false);
                 showToast("주파수 송신이 정지되었습니다.", "info");
             } else {
                 const activeCount = channels.filter(c => c.enabled).length;
@@ -355,8 +384,50 @@
                 masterPowerBtn.className = "w-full py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-3 bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all glow-green";
                 powerIcon.className = "fa-solid fa-stop text-lg";
                 powerText.innerText = "전체 주파수 송신 정지";
-                visualizerOverlay.style.opacity = '0';
+                
+                updateStatusDisplay(true);
                 showToast(`${activeCount}개 주파수 정현파 송신 중...`, "success");
+            }
+        }
+
+        /**
+         * Update Status Card & Equalizer Animation State
+         */
+        function updateStatusDisplay(active) {
+            if (active) {
+                const activeChannels = channels.filter(c => c.enabled);
+                const freqsStr = activeChannels.map(c => `${c.freq}Hz`).join(', ');
+
+                txStatusCard.className = "relative w-full py-5 px-4 bg-slate-950 rounded-xl border border-cyan-500/50 flex flex-col items-center justify-center gap-3 overflow-hidden shadow-lg shadow-cyan-950/40 transition-all duration-300";
+                pulseBg.className = "absolute inset-0 bg-cyan-500/10 animate-pulse pointer-events-none";
+                statusIconBox.className = "w-10 h-10 rounded-full bg-cyan-500 text-slate-950 flex items-center justify-center text-lg font-bold shadow-lg shadow-cyan-500/50 animate-bounce";
+                txStatusTitle.className = "text-sm font-bold text-cyan-300";
+                txStatusTitle.innerText = "주파수 신호 송신 중...";
+                txStatusDetail.innerText = `${activeChannels.length}개 채널 (${freqsStr})`;
+                eqBars.style.opacity = '1';
+
+                // Random equalizer movement animation
+                if (!eqInterval) {
+                    eqInterval = setInterval(() => {
+                        Array.from(eqBars.children).forEach(bar => {
+                            const h = Math.floor(Math.random() * 24) + 6;
+                            bar.style.height = `${h}px`;
+                        });
+                    }, 120);
+                }
+            } else {
+                txStatusCard.className = "relative w-full py-5 px-4 bg-slate-950 rounded-xl border border-slate-800 flex flex-col items-center justify-center gap-3 overflow-hidden transition-all duration-300";
+                pulseBg.className = "absolute inset-0 bg-cyan-500/0 transition-all duration-500 pointer-events-none";
+                statusIconBox.className = "w-10 h-10 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 text-lg transition-all duration-300";
+                txStatusTitle.className = "text-sm font-bold text-slate-400";
+                txStatusTitle.innerText = "송신 대기 중";
+                txStatusDetail.innerText = "출력할 주파수를 선택해 주세요";
+                eqBars.style.opacity = '0.3';
+
+                if (eqInterval) {
+                    clearInterval(eqInterval);
+                    eqInterval = null;
+                }
             }
         }
 
@@ -544,8 +615,8 @@
             masterPowerBtn.className = "w-full py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-3 bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all glow-green";
             powerIcon.className = "fa-solid fa-stop text-lg";
             powerText.innerText = "전체 주파수 송신 정지";
-            visualizerOverlay.style.opacity = '0';
-
+            
+            updateStatusDisplay(true);
             renderChannelCards();
             showToast(`CH${idx + 1} (${channels[idx].freq} Hz) 단일 송신 시작`, "info");
         };
@@ -603,67 +674,9 @@
         function updateActiveBadge() {
             const count = channels.filter(c => c.enabled).length;
             activeCountBadge.innerText = `${count} / 14 선택됨`;
-        }
-
-        /**
-         * Canvas Realtime Oscillator Waveform Visualizer
-         */
-        function drawVisualizer() {
-            requestAnimationFrame(drawVisualizer);
-
-            const width = canvas.width;
-            const height = canvas.height;
-
-            canvasCtx.fillStyle = '#020617'; // dark background
-            canvasCtx.fillRect(0, 0, width, height);
-
-            if (!analyserNode || !isMasterPlaying) {
-                // Draw static center grid line
-                canvasCtx.lineWidth = 1;
-                canvasCtx.strokeStyle = '#1e293b';
-                canvasCtx.beginPath();
-                canvasCtx.moveTo(0, height / 2);
-                canvasCtx.lineTo(width, height / 2);
-                canvasCtx.stroke();
-                return;
+            if (isMasterPlaying) {
+                updateStatusDisplay(true);
             }
-
-            const bufferLength = analyserNode.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-            analyserNode.getByteTimeDomainData(dataArray);
-
-            canvasCtx.lineWidth = 2;
-            canvasCtx.strokeStyle = '#38bdf8'; // Cyan waveform line
-            canvasCtx.beginPath();
-
-            const sliceWidth = width * 1.0 / bufferLength;
-            let x = 0;
-
-            for (let i = 0; i < bufferLength; i++) {
-                const v = dataArray[i] / 128.0;
-                const y = v * height / 2;
-
-                if (i === 0) {
-                    canvasCtx.moveTo(x, y);
-                } else {
-                    canvasCtx.lineTo(x, y);
-                }
-
-                x += sliceWidth;
-            }
-
-            canvasCtx.lineTo(canvas.width, canvas.height / 2);
-            canvasCtx.stroke();
-        }
-
-        /**
-         * Resize canvas resolution for sharp display
-         */
-        function resizeCanvas() {
-            const rect = canvas.parentElement.getBoundingClientRect();
-            canvas.width = rect.width * window.devicePixelRatio;
-            canvas.height = rect.height * window.devicePixelRatio;
-            canvasCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
         }
 
         /**
@@ -708,9 +721,6 @@
         // Initialize App on Window Load
         window.addEventListener('load', () => {
             renderChannelCards();
-            resizeCanvas();
-            drawVisualizer();
-            window.addEventListener('resize', resizeCanvas);
         });
     </script>
 </body>
