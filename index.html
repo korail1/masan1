@@ -55,11 +55,9 @@
         <div class="max-w-4xl mx-auto flex items-center justify-between">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                    <i class="fa-solid fa-wave-square"></i>
                 </div>
                 <div>
                     <h1 class="text-lg font-bold text-slate-100 leading-tight">정현파 주파수 송신기</h1>
-                    <p class="text-xs text-slate-400">14-Channel Sine Wave Generator</p>
                 </div>
             </div>
             <!-- Audio Context Status Indicator -->
@@ -574,7 +572,7 @@
             const ch = channels[idx];
             let newFreq = Math.max(1, Math.min(22000, ch.freq + delta));
             ch.freq = newFreq;
-
+a
             const inputEl = document.getElementById(`freq-input-${idx}`);
             if (inputEl) inputEl.value = newFreq;
 
