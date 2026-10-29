@@ -1,1 +1,717 @@
-# masan1
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>정현파 주파수 송신기 (14채널 Tone Generator)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b',
+                        accentBlue: '#38bdf8',
+                        accentGreen: '#22c55e',
+                        accentPurple: '#a855f7'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        /* Custom scrollbar for frequency grid */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        .glow-green {
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.4);
+        }
+        .glow-blue {
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-darkBg text-slate-100 min-h-screen flex flex-col justify-between select-none">
+
+    <!-- Header Section -->
+    <header class="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50 shadow-md">
+        <div class="max-w-4xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                    <i class="fa-solid fa-wave-square"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold text-slate-100 leading-tight">정현파 주파수 송신기</h1>
+                    <p class="text-xs text-slate-400">14-Channel Sine Wave Generator</p>
+                </div>
+            </div>
+            <!-- Audio Context Status Indicator -->
+            <button id="audio-unlock-btn" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse" id="status-dot"></span>
+                <span id="status-text">오디오 활성화 필요</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="max-w-4xl w-full mx-auto p-3 sm:p-5 flex-1 flex flex-col gap-5">
+
+        <!-- Top Master Control & Visualizer Card -->
+        <div class="bg-cardBg border border-slate-700/60 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col gap-4">
+            
+            <!-- Realtime Waveform Visualizer Canvas -->
+            <div class="relative w-full h-28 sm:h-36 bg-slate-950 rounded-xl overflow-hidden border border-slate-800 flex items-center justify-center">
+                <canvas id="visualizer" class="w-full h-full block"></canvas>
+                <div id="visualizer-overlay" class="absolute inset-0 flex items-center justify-center bg-slate-950/70 text-slate-400 text-xs font-mono pointer-events-none transition-opacity duration-300">
+                    <i class="fa-solid fa-play-circle text-base mr-2"></i> 송신 시작 시 실시간 파형이 표시됩니다
+                </div>
+            </div>
+
+            <!-- Master Play & Control Buttons -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                <!-- Master Power Toggle -->
+                <button id="master-power-btn" class="w-full py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all">
+                    <i class="fa-solid fa-power-off text-lg" id="power-icon"></i>
+                    <span id="power-text">전체 주파수 송신 시작</span>
+                </button>
+
+                <!-- Quick Selection Controls -->
+                <div class="grid grid-cols-3 gap-2">
+                    <button id="btn-select-all" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition">
+                        <i class="fa-solid fa-check-double mr-1 text-cyan-400"></i>전체 선택
+                    </button>
+                    <button id="btn-deselect-all" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition">
+                        <i class="fa-solid fa-xmark mr-1 text-rose-400"></i>전체 해제
+                    </button>
+                    <button id="btn-reset-freq" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 rounded-lg text-xs font-medium text-slate-200 transition">
+                        <i class="fa-solid fa-rotate-left mr-1 text-amber-400"></i>초기화
+                    </button>
+                </div>
+            </div>
+
+            <!-- Master Volume Control -->
+            <div class="flex items-center gap-4 pt-2 border-t border-slate-800">
+                <i class="fa-solid fa-volume-high text-slate-400"></i>
+                <span class="text-xs font-semibold text-slate-300 min-w-[70px]">마스터 볼륨</span>
+                <input type="range" id="master-volume" min="0" max="100" value="80" class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                <span id="master-volume-txt" class="text-xs font-mono font-bold text-cyan-400 w-10 text-right">80%</span>
+            </div>
+        </div>
+
+        <!-- Mode Tab Selection & Info -->
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">송신 채널 목록</span>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 font-semibold" id="active-count-badge">0 / 14 선택됨</span>
+            </div>
+            <div class="text-xs text-slate-400">
+                <i class="fa-solid fa-circle-info text-cyan-400 mr-1"></i>정현파(Sine Wave) 전용
+            </div>
+        </div>
+
+        <!-- 14 Frequency Grid Container -->
+        <div id="channels-container" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <!-- Dynamic 14 Cards inserted by JavaScript -->
+        </div>
+
+    </main>
+
+    <!-- Toast Notification Overlay -->
+    <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 bg-slate-800 text-slate-100 px-4 py-2.5 rounded-xl border border-slate-700 shadow-2xl text-xs font-medium opacity-0 pointer-events-none transition-opacity duration-300 z-50 flex items-center gap-2">
+        <i id="toast-icon" class="fa-solid fa-circle-info text-cyan-400"></i>
+        <span id="toast-msg">알림 메시지</span>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900/80 border-t border-slate-800/80 py-3 px-4 text-center text-xs text-slate-500">
+        Web Audio API Pure Sine Wave Generator &bull; iOS & Android Compatible
+    </footer>
+
+    <!-- JavaScript Audio & UI Logic -->
+    <script>
+        // Preset 14 Fixed Frequency Channels Data
+        const CHANNEL_PRESETS = [
+            { id: 'f1',  tx: 'T701', rx: 'R701', target: 625 },
+            { id: 'f2',  tx: 'T702', rx: 'R702', target: 875 },
+            { id: 'f3',  tx: 'T703', rx: 'R703', target: 1125 },
+            { id: 'f4',  tx: 'T704', rx: 'R704', target: 1375 },
+            { id: 'f5',  tx: 'T705', rx: 'R705', target: 1625 },
+            { id: 'f6',  tx: 'T706', rx: 'R706', target: 1875 },
+            { id: 'f7',  tx: 'T707', rx: 'R707', target: 2125 },
+            { id: 'f8',  tx: 'T708', rx: 'R708', target: 2375 },
+            { id: 'f9',  tx: 'T709', rx: 'R709', target: 2625 },
+            { id: 'f10', tx: 'T710', rx: 'R710', target: 3125 },
+            { id: 'f11', tx: 'T711', rx: 'R711', target: 3625 },
+            { id: 'f12', tx: 'T712', rx: 'R712', target: 4125 },
+            { id: 'f13', tx: 'T713', rx: 'R713', target: 4625 },
+            { id: 'f14', tx: 'T714', rx: 'R714', target: 7125 }
+        ];
+
+        // Global Web Audio Context & State
+        let audioCtx = null;
+        let masterGainNode = null;
+        let analyserNode = null;
+        let isMasterPlaying = false;
+
+        // Channel state object mapped with presets
+        const channels = CHANNEL_PRESETS.map((item, index) => ({
+            index: index,
+            id: item.id,
+            tx: item.tx,
+            rx: item.rx,
+            freq: item.target,
+            targetFreq: item.target,
+            gainVal: 0.8,
+            enabled: false,
+            oscillator: null,
+            gainNode: null
+        }));
+
+        // DOM Element Cache
+        const channelsContainer = document.getElementById('channels-container');
+        const masterPowerBtn = document.getElementById('master-power-btn');
+        const powerIcon = document.getElementById('power-icon');
+        const powerText = document.getElementById('power-text');
+        const masterVolumeSlider = document.getElementById('master-volume');
+        const masterVolumeTxt = document.getElementById('master-volume-txt');
+        const btnSelectAll = document.getElementById('btn-select-all');
+        const btnDeselectAll = document.getElementById('btn-deselect-all');
+        const btnResetFreq = document.getElementById('btn-reset-freq');
+        const activeCountBadge = document.getElementById('active-count-badge');
+        const audioUnlockBtn = document.getElementById('audio-unlock-btn');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const canvas = document.getElementById('visualizer');
+        const canvasCtx = canvas.getContext('2d');
+        const visualizerOverlay = document.getElementById('visualizer-overlay');
+
+        /**
+         * Initialize Audio Context & Lock handling for Mobile (iOS Safari / Android)
+         */
+        function initAudioContext() {
+            if (!audioCtx) {
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContextClass();
+
+                // Master Gain Node
+                masterGainNode = audioCtx.createGain();
+                masterGainNode.gain.setValueAtTime(parseFloat(masterVolumeSlider.value) / 100, audioCtx.currentTime);
+
+                // Analyser Node for Visualizer
+                analyserNode = audioCtx.createAnalyser();
+                analyserNode.fftSize = 2048;
+
+                // Chain: MasterGain -> Analyser -> Destination (Speakers)
+                masterGainNode.connect(analyserNode);
+                analyserNode.connect(audioCtx.destination);
+            }
+
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            updateAudioStatusUI();
+        }
+
+        function updateAudioStatusUI() {
+            if (audioCtx && audioCtx.state === 'running') {
+                statusDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+                statusText.innerText = "오디오 준비됨";
+                audioUnlockBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-2 cursor-default";
+            } else {
+                statusDot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                statusText.innerText = "오디오 활성화 필요";
+                audioUnlockBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-2 cursor-pointer";
+            }
+        }
+
+        /**
+         * Dynamic Gain Equalization to avoid clipping when playing multiple frequencies
+         */
+        function calculateBalancedGain(activeCount, channelGainVal) {
+            if (activeCount <= 1) return channelGainVal;
+            // Scale gain down proportionately based on square root of active count to maintain power
+            const scaleFactor = 1 / Math.sqrt(activeCount);
+            return channelGainVal * scaleFactor;
+        }
+
+        /**
+         * Start generating sine wave for a specific channel
+         */
+        function startChannelOscillator(ch) {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            if (ch.oscillator) stopChannelOscillator(ch);
+
+            const activeChannels = channels.filter(c => c.enabled);
+            const activeCount = activeChannels.length || 1;
+            const targetGain = calculateBalancedGain(activeCount, ch.gainVal);
+
+            // Create Sine Wave Oscillator
+            ch.oscillator = audioCtx.createOscillator();
+            ch.oscillator.type = 'sine'; // Strictly Sine Wave (정현파)
+            ch.oscillator.frequency.setValueAtTime(ch.freq, audioCtx.currentTime);
+
+            // Create Individual Gain Node with Smooth Ramp In (Anti-click Envelope)
+            ch.gainNode = audioCtx.createGain();
+            ch.gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+            ch.gainNode.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.015); // 15ms smooth ramp
+
+            // Connect Oscillator -> Channel Gain -> Master Gain
+            ch.oscillator.connect(ch.gainNode);
+            ch.gainNode.connect(masterGainNode);
+
+            ch.oscillator.start();
+        }
+
+        /**
+         * Stop generating sine wave for a specific channel with Smooth Ramp Out
+         */
+        function stopChannelOscillator(ch) {
+            if (!ch.oscillator || !ch.gainNode) return;
+
+            const osc = ch.oscillator;
+            const gNode = ch.gainNode;
+
+            // Smooth ramp down to zero amplitude to eliminate click sound
+            gNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.015);
+            
+            setTimeout(() => {
+                try {
+                    osc.stop();
+                    osc.disconnect();
+                    gNode.disconnect();
+                } catch (e) {
+                    // Ignore already stopped oscillator errors
+                }
+            }, 50);
+
+            ch.oscillator = null;
+            ch.gainNode = null;
+        }
+
+        /**
+         * Recalculate gains for all active channels when active channel count or channel slider changes
+         */
+        function updateAllActiveGains() {
+            if (!audioCtx || !isMasterPlaying) return;
+            const activeChannels = channels.filter(c => c.enabled);
+            const activeCount = activeChannels.length || 1;
+
+            activeChannels.forEach(ch => {
+                if (ch.gainNode) {
+                    const balancedGain = calculateBalancedGain(activeCount, ch.gainVal);
+                    ch.gainNode.gain.setTargetAtTime(balancedGain, audioCtx.currentTime, 0.02);
+                }
+            });
+        }
+
+        /**
+         * Toggle Master Transmission Power
+         */
+        function toggleMasterPower() {
+            initAudioContext();
+
+            if (isMasterPlaying) {
+                // Stop All
+                isMasterPlaying = false;
+                channels.forEach(ch => stopChannelOscillator(ch));
+                
+                // UI updates
+                masterPowerBtn.className = "w-full py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all";
+                powerIcon.className = "fa-solid fa-power-off text-lg";
+                powerText.innerText = "전체 주파수 송신 시작";
+                visualizerOverlay.style.opacity = '1';
+                showToast("주파수 송신이 정지되었습니다.", "info");
+            } else {
+                const activeCount = channels.filter(c => c.enabled).length;
+                if (activeCount === 0) {
+                    showToast("송신할 주파수를 최소 1개 이상 선택해 주세요.", "warning");
+                    return;
+                }
+
+                // Start All Enabled Channels
+                isMasterPlaying = true;
+                channels.forEach(ch => {
+                    if (ch.enabled) startChannelOscillator(ch);
+                });
+
+                // UI updates
+                masterPowerBtn.className = "w-full py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-3 bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all glow-green";
+                powerIcon.className = "fa-solid fa-stop text-lg";
+                powerText.innerText = "전체 주파수 송신 정지";
+                visualizerOverlay.style.opacity = '0';
+                showToast(`${activeCount}개 주파수 정현파 송신 중...`, "success");
+            }
+        }
+
+        /**
+         * Create HTML Card Element for each 14 Channel Slots
+         */
+        function renderChannelCards() {
+            channelsContainer.innerHTML = '';
+
+            channels.forEach((ch, idx) => {
+                const card = document.createElement('div');
+                card.className = `bg-slate-900/90 border ${ch.enabled ? 'border-cyan-500/70 bg-slate-800/80 shadow-lg shadow-cyan-950/20' : 'border-slate-800'} rounded-xl p-3.5 transition-all duration-200 flex flex-col gap-3 relative`;
+                card.id = `card-ch-${idx}`;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-2">
+                        <!-- Channel ID & Status Switch -->
+                        <div class="flex items-center gap-2.5">
+                            <button id="toggle-btn-${idx}" onclick="toggleChannel(${idx})" class="w-10 h-10 rounded-lg font-mono font-bold text-xs flex flex-col items-center justify-center transition-all ${ch.enabled ? 'bg-cyan-500 text-slate-950 shadow-md shadow-cyan-500/30' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}">
+                                <span>${ch.id.toUpperCase()}</span>
+                                <span class="text-[9px] font-normal opacity-80">${ch.enabled ? 'ON' : 'OFF'}</span>
+                            </button>
+                            <div>
+                                <!-- TX / RX Badges -->
+                                <div class="flex items-center gap-1.5 mb-1">
+                                    <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">TX: ${ch.tx}</span>
+                                    <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold">RX: ${ch.rx}</span>
+                                </div>
+                                <span class="text-xs font-semibold ${ch.enabled ? 'text-cyan-300' : 'text-slate-400'}">
+                                    ${ch.enabled ? '송신 활성화됨' : '대기 중'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Fixed Target Frequency Display & Hz Input -->
+                        <div class="flex flex-col items-end">
+                            <div class="flex items-center gap-1 bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1">
+                                <input type="number" id="freq-input-${idx}" min="1" max="22000" step="1" value="${ch.freq}" 
+                                    onchange="onFrequencyInputChange(${idx}, this.value)"
+                                    class="w-20 bg-transparent text-right font-mono font-bold text-sm text-cyan-400 focus:outline-none">
+                                <span class="text-xs text-slate-400 font-mono">Hz</span>
+                            </div>
+                            <span class="text-[10px] text-slate-500 font-mono mt-0.5">목표: ${ch.targetFreq} Hz</span>
+                        </div>
+                    </div>
+
+                    <!-- Channel Fine-Tune Controls & Gain Slider -->
+                    <div class="flex items-center justify-between gap-3 pt-1 border-t border-slate-800/80">
+                        <!-- Quick Step Hz Adjust Buttons -->
+                        <div class="flex gap-1">
+                            <button onclick="adjustFrequency(${idx}, -10)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 rounded text-[10px] font-mono text-slate-300 border border-slate-700">-10</button>
+                            <button onclick="adjustFrequency(${idx}, 10)" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 rounded text-[10px] font-mono text-slate-300 border border-slate-700">+10</button>
+                            <button onclick="resetSingleFrequency(${idx})" title="기본값 복원" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 rounded text-[10px] font-mono text-amber-400 border border-slate-700">복원</button>
+                        </div>
+
+                        <!-- Single Play/Solo Button -->
+                        <button onclick="playSingleTone(${idx})" title="이 주파수만 단일 출력" class="px-3 py-1 bg-slate-800 hover:bg-cyan-500 hover:text-slate-950 text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-slate-700 transition">
+                            <i class="fa-solid fa-volume-high text-[10px]"></i> 단일 송신
+                        </button>
+                    </div>
+
+                    <!-- Volume / Gain Slider for individual channel -->
+                    <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                        <span class="w-8">볼륨</span>
+                        <input type="range" min="0" max="100" value="${ch.gainVal * 100}" 
+                            oninput="onChannelGainChange(${idx}, this.value)"
+                            class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                        <span id="gain-txt-${idx}" class="font-mono text-[10px] text-slate-400 w-8 text-right">${Math.round(ch.gainVal * 100)}%</span>
+                    </div>
+                `;
+
+                channelsContainer.appendChild(card);
+            });
+
+            updateActiveBadge();
+        }
+
+        /**
+         * Reset single channel frequency to target preset
+         */
+        window.resetSingleFrequency = function(idx) {
+            const ch = channels[idx];
+            ch.freq = ch.targetFreq;
+            
+            const inputEl = document.getElementById(`freq-input-${idx}`);
+            if (inputEl) inputEl.value = ch.targetFreq;
+
+            if (ch.oscillator && audioCtx) {
+                ch.oscillator.frequency.setTargetAtTime(ch.targetFreq, audioCtx.currentTime, 0.01);
+            }
+        };
+
+        btnResetFreq.addEventListener('click', () => {
+            channels.forEach((ch, i) => {
+                ch.freq = ch.targetFreq;
+                ch.gainVal = 0.8;
+                if (ch.oscillator && audioCtx) {
+                    ch.oscillator.frequency.setTargetAtTime(ch.targetFreq, audioCtx.currentTime, 0.01);
+                }
+            });
+            renderChannelCards();
+            showToast("모든 주파수가 지정 고정값(Target Hz)으로 복원되었습니다.", "info");
+        });
+
+        /**
+         * Toggle individual channel activation
+         */
+        window.toggleChannel = function(idx) {
+            initAudioContext();
+            const ch = channels[idx];
+            ch.enabled = !ch.enabled;
+
+            if (isMasterPlaying) {
+                if (ch.enabled) {
+                    startChannelOscillator(ch);
+                } else {
+                    stopChannelOscillator(ch);
+                }
+                updateAllActiveGains();
+            }
+
+            renderChannelCards();
+        };
+
+        /**
+         * Handle Frequency input box change
+         */
+        window.onFrequencyInputChange = function(idx, val) {
+            let freq = parseFloat(val);
+            if (isNaN(freq) || freq <= 0) freq = 440;
+            if (freq > 22000) freq = 22000;
+
+            channels[idx].freq = freq;
+
+            if (channels[idx].oscillator && audioCtx) {
+                channels[idx].oscillator.frequency.setTargetAtTime(freq, audioCtx.currentTime, 0.01);
+            }
+        };
+
+        /**
+         * Fine-tune Frequency button (+/- Hz)
+         */
+        window.adjustFrequency = function(idx, delta) {
+            const ch = channels[idx];
+            let newFreq = Math.max(1, Math.min(22000, ch.freq + delta));
+            ch.freq = newFreq;
+
+            const inputEl = document.getElementById(`freq-input-${idx}`);
+            if (inputEl) inputEl.value = newFreq;
+
+            if (ch.oscillator && audioCtx) {
+                ch.oscillator.frequency.setTargetAtTime(newFreq, audioCtx.currentTime, 0.01);
+            }
+        };
+
+        /**
+         * Handle individual channel gain slider change
+         */
+        window.onChannelGainChange = function(idx, val) {
+            const gainVal = parseFloat(val) / 100;
+            channels[idx].gainVal = gainVal;
+
+            const txtEl = document.getElementById(`gain-txt-${idx}`);
+            if (txtEl) txtEl.innerText = `${Math.round(val)}%`;
+
+            updateAllActiveGains();
+        };
+
+        /**
+         * Single Play / Solo Test Button
+         */
+        window.playSingleTone = function(idx) {
+            initAudioContext();
+
+            // Disable all other channels and enable only this one
+            channels.forEach((c, i) => {
+                c.enabled = (i === idx);
+                if (c.oscillator) stopChannelOscillator(c);
+            });
+
+            isMasterPlaying = true;
+            startChannelOscillator(channels[idx]);
+
+            // UI Updates
+            masterPowerBtn.className = "w-full py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-3 bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all glow-green";
+            powerIcon.className = "fa-solid fa-stop text-lg";
+            powerText.innerText = "전체 주파수 송신 정지";
+            visualizerOverlay.style.opacity = '0';
+
+            renderChannelCards();
+            showToast(`CH${idx + 1} (${channels[idx].freq} Hz) 단일 송신 시작`, "info");
+        };
+
+        /**
+         * Bulk Selection Control Functions
+         */
+        btnSelectAll.addEventListener('click', () => {
+            channels.forEach(ch => ch.enabled = true);
+            if (isMasterPlaying) {
+                channels.forEach(ch => {
+                    if (!ch.oscillator) startChannelOscillator(ch);
+                });
+                updateAllActiveGains();
+            }
+            renderChannelCards();
+            showToast("14개 전체 주파수가 선택되었습니다.", "info");
+        });
+
+        btnDeselectAll.addEventListener('click', () => {
+            channels.forEach(ch => ch.enabled = false);
+            if (isMasterPlaying) {
+                channels.forEach(ch => stopChannelOscillator(ch));
+            }
+            renderChannelCards();
+            showToast("모든 주파수 선택이 해제되었습니다.", "info");
+        });
+
+        btnResetFreq.addEventListener('click', () => {
+            DEFAULT_FREQUENCIES.forEach((f, i) => {
+                channels[i].freq = f;
+                channels[i].gainVal = 0.8;
+                if (channels[i].oscillator && audioCtx) {
+                    channels[i].oscillator.frequency.setTargetAtTime(f, audioCtx.currentTime, 0.01);
+                }
+            });
+            renderChannelCards();
+            showToast("모든 주파수 값이 초기화되었습니다.", "info");
+        });
+
+        /**
+         * Master Volume Slider Change
+         */
+        masterVolumeSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            masterVolumeTxt.innerText = `${val}%`;
+            if (masterGainNode && audioCtx) {
+                masterGainNode.gain.setTargetAtTime(val / 100, audioCtx.currentTime, 0.01);
+            }
+        });
+
+        /**
+         * Update Active Channels Badge Count
+         */
+        function updateActiveBadge() {
+            const count = channels.filter(c => c.enabled).length;
+            activeCountBadge.innerText = `${count} / 14 선택됨`;
+        }
+
+        /**
+         * Canvas Realtime Oscillator Waveform Visualizer
+         */
+        function drawVisualizer() {
+            requestAnimationFrame(drawVisualizer);
+
+            const width = canvas.width;
+            const height = canvas.height;
+
+            canvasCtx.fillStyle = '#020617'; // dark background
+            canvasCtx.fillRect(0, 0, width, height);
+
+            if (!analyserNode || !isMasterPlaying) {
+                // Draw static center grid line
+                canvasCtx.lineWidth = 1;
+                canvasCtx.strokeStyle = '#1e293b';
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(0, height / 2);
+                canvasCtx.lineTo(width, height / 2);
+                canvasCtx.stroke();
+                return;
+            }
+
+            const bufferLength = analyserNode.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyserNode.getByteTimeDomainData(dataArray);
+
+            canvasCtx.lineWidth = 2;
+            canvasCtx.strokeStyle = '#38bdf8'; // Cyan waveform line
+            canvasCtx.beginPath();
+
+            const sliceWidth = width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * height / 2;
+
+                if (i === 0) {
+                    canvasCtx.moveTo(x, y);
+                } else {
+                    canvasCtx.lineTo(x, y);
+                }
+
+                x += sliceWidth;
+            }
+
+            canvasCtx.lineTo(canvas.width, canvas.height / 2);
+            canvasCtx.stroke();
+        }
+
+        /**
+         * Resize canvas resolution for sharp display
+         */
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            canvasCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+
+        /**
+         * Toast Notification Helper
+         */
+        function showToast(msg, type = "info") {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-msg');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMsg.innerText = msg;
+
+            if (type === "success") {
+                toastIcon.className = "fa-solid fa-circle-check text-emerald-400";
+            } else if (type === "warning") {
+                toastIcon.className = "fa-solid fa-triangle-exclamation text-amber-400";
+            } else {
+                toastIcon.className = "fa-solid fa-circle-info text-cyan-400";
+            }
+
+            toast.style.opacity = '1';
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 2500);
+        }
+
+        // Setup Event Listeners
+        masterPowerBtn.addEventListener('click', toggleMasterPower);
+        audioUnlockBtn.addEventListener('click', initAudioContext);
+
+        // Unlock audio context on any first touch/click event for iOS Safari compatibility
+        ['touchstart', 'touchend', 'mousedown', 'keydown'].forEach(eventType => {
+            window.addEventListener(eventType, () => {
+                if (!audioCtx) {
+                    initAudioContext();
+                } else if (audioCtx.state === 'suspended') {
+                    audioCtx.resume().then(updateAudioStatusUI);
+                }
+            }, { once: true });
+        });
+
+        // Initialize App on Window Load
+        window.addEventListener('load', () => {
+            renderChannelCards();
+            resizeCanvas();
+            drawVisualizer();
+            window.addEventListener('resize', resizeCanvas);
+        });
+    </script>
+</body>
+</html>
