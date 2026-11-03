@@ -362,7 +362,7 @@
                 // UI updates
                 masterPowerBtn.className = "w-full py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all";
                 powerIcon.className = "fa-solid fa-power-off text-lg";
-                powerText.innerText = "전체 주파수 송신 시작";
+                powerText.innerText = "주파수 송신 시작";
                 
                 updateStatusDisplay(false);
                 showToast("주파수 송신이 정지되었습니다.", "info");
@@ -382,7 +382,7 @@
                 // UI updates
                 masterPowerBtn.className = "w-full py-3.5 px-6 rounded-xl font-bold text-base flex items-center justify-center gap-3 bg-gradient-to-r from-rose-500 to-red-600 text-white shadow-lg hover:brightness-110 active:scale-[0.98] transition-all glow-green";
                 powerIcon.className = "fa-solid fa-stop text-lg";
-                powerText.innerText = "전체 주파수 송신 정지";
+                powerText.innerText = "주파수 송신 정지";
                 
                 updateStatusDisplay(true);
                 showToast(`${activeCount}개 주파수 정현파 송신 중...`, "success");
